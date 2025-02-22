@@ -49,6 +49,11 @@ interface ProcessResult {
   turnaroundTime: number;
 }
 
+interface SettingsFormValues {
+  algorithm: AlgorithmType;
+  quantum: number;
+}
+
 export default function Scheduler() {
   const [processes, setProcesses] = useState<Process[]>([]);
   const [algorithm, setAlgorithm] = useState<AlgorithmType>("FCFS");
@@ -59,7 +64,7 @@ export default function Scheduler() {
     avgTurnaround: 0 
   });
 
-  const form = useForm({
+  const processForm = useForm({
     resolver: zodResolver(processSchema),
     defaultValues: {
       name: "",
@@ -69,13 +74,20 @@ export default function Scheduler() {
     },
   });
 
+  const settingsForm = useForm<SettingsFormValues>({
+    defaultValues: {
+      algorithm: "FCFS",
+      quantum: 2,
+    },
+  });
+
   const onSubmit = (data: any) => {
     const newProcess: Process = {
       id: processes.length + 1,
       ...data,
     };
     setProcesses([...processes, newProcess]);
-    form.reset();
+    processForm.reset();
   };
 
   const runSimulation = () => {
@@ -138,10 +150,10 @@ export default function Scheduler() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold mb-4">Add Process</h2>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <Form {...processForm}>
+                <form onSubmit={processForm.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
-                    control={form.control}
+                    control={processForm.control}
                     name="name"
                     render={({ field }) => (
                       <FormItem>
@@ -155,7 +167,7 @@ export default function Scheduler() {
                   />
 
                   <FormField
-                    control={form.control}
+                    control={processForm.control}
                     name="arrivalTime"
                     render={({ field }) => (
                       <FormItem>
@@ -174,7 +186,7 @@ export default function Scheduler() {
                   />
 
                   <FormField
-                    control={form.control}
+                    control={processForm.control}
                     name="burstTime"
                     render={({ field }) => (
                       <FormItem>
@@ -194,7 +206,7 @@ export default function Scheduler() {
 
                   {(algorithm === "Priority") && (
                     <FormField
-                      control={form.control}
+                      control={processForm.control}
                       name="priority"
                       render={({ field }) => (
                         <FormItem>
@@ -231,49 +243,74 @@ export default function Scheduler() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold mb-4">Simulation Settings</h2>
+              <Form {...settingsForm}>
+                <form className="space-y-4">
+                  <FormField
+                    control={settingsForm.control}
+                    name="algorithm"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Algorithm</FormLabel>
+                        <Select
+                          value={algorithm}
+                          onValueChange={(value) => {
+                            setAlgorithm(value as AlgorithmType);
+                            field.onChange(value);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select algorithm" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="FCFS">First Come First Serve</SelectItem>
+                            <SelectItem value="RR">Round Robin</SelectItem>
+                            <SelectItem value="Priority">Priority</SelectItem>
+                            <SelectItem value="SJF">Shortest Job First</SelectItem>
+                            <SelectItem value="SRTF">
+                              Shortest Remaining Time First
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <FormLabel>Algorithm</FormLabel>
-                  <Select
-                    value={algorithm}
-                    onValueChange={(value) => setAlgorithm(value as AlgorithmType)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select algorithm" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FCFS">First Come First Serve</SelectItem>
-                      <SelectItem value="RR">Round Robin</SelectItem>
-                      <SelectItem value="Priority">Priority</SelectItem>
-                      <SelectItem value="SJF">Shortest Job First</SelectItem>
-                      <SelectItem value="SRTF">
-                        Shortest Remaining Time First
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {algorithm === "RR" && (
-                  <div className="space-y-2">
-                    <FormLabel>Time Quantum</FormLabel>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={quantum}
-                      onChange={(e) => setQuantum(parseInt(e.target.value))}
+                  {algorithm === "RR" && (
+                    <FormField
+                      control={settingsForm.control}
+                      name="quantum"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Time Quantum</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={quantum}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value);
+                                setQuantum(value);
+                                field.onChange(value);
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
                     />
-                  </div>
-                )}
+                  )}
 
-                <Button
-                  onClick={runSimulation}
-                  disabled={processes.length === 0}
-                  className="w-full"
-                >
-                  Run Simulation
-                </Button>
-              </div>
+                  <Button
+                    type="button"
+                    onClick={runSimulation}
+                    disabled={processes.length === 0}
+                    className="w-full"
+                  >
+                    Run Simulation
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </motion.div>
