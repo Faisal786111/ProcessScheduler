@@ -31,6 +31,7 @@ export default function Navigation() {
             <NavLink href="/">Home</NavLink>
             <NavLink href="/scheduler">Scheduler</NavLink>
             <NavLink href="/about">About</NavLink>
+            <NavLink href="/contact">Contact</NavLink>
           </div>
         </div>
       </div>

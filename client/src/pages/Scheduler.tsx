@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fcfs, roundRobin, priority, sjf, srtf } from "@/lib/algorithms";
 import { motion } from "framer-motion";
 import { Cpu, Settings2, Send } from 'lucide-react';
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 
 interface ProcessResult {
   process: Process;
@@ -77,6 +78,14 @@ export default function Scheduler() {
 
   const currentAlgorithm = form.watch("algorithm");
 
+  useKeyboardShortcut('p', true, () => {
+    append({ name: `P${fields.length + 1}`, arrivalTime: 0, burstTime: 1, priority: 0 });
+    toast({
+      title: "Process Added",
+      description: "Use Ctrl+P to quickly add more processes",
+    });
+  });
+
   const onSubmit = (data: ProcessesFormValues) => {
     let simulationResults;
     const processes = data.processes.map((p, idx) => ({ ...p, id: idx + 1 }));
@@ -115,6 +124,14 @@ export default function Scheduler() {
 
   const handleFeedbackSubmit = () => {
     if (feedback.trim()) {
+      // Store feedback in local storage
+      const storedFeedback = JSON.parse(localStorage.getItem('scheduler_feedback') || '[]');
+      storedFeedback.push({
+        feedback,
+        timestamp: new Date().toISOString(),
+      });
+      localStorage.setItem('scheduler_feedback', JSON.stringify(storedFeedback));
+
       toast({
         title: "Thank you for your feedback!",
         description: "Your feedback helps us improve the simulator.",
@@ -174,7 +191,7 @@ export default function Scheduler() {
                     variant="outline"
                     onClick={() => append({ name: `P${fields.length + 1}`, arrivalTime: 0, burstTime: 1, priority: 0 })}
                   >
-                    Add Process
+                    Add Process (Ctrl+P)
                   </Button>
                 </div>
 
