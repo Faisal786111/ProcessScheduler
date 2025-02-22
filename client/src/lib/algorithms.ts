@@ -43,12 +43,12 @@ export function roundRobin(processes: Process[], quantum: number): ProcessResult
   while (queue.length > 0) {
     const process = queue.shift()!;
     const remaining = remainingTime.get(process.id)!;
-    
+
     if (remaining > 0) {
       const executeTime = Math.min(quantum, remaining);
       const startTime = currentTime;
       const endTime = startTime + executeTime;
-      
+
       results.push({
         process,
         startTime,
@@ -70,9 +70,12 @@ export function roundRobin(processes: Process[], quantum: number): ProcessResult
 }
 
 export function priority(processes: Process[]): ProcessResult[] {
-  const sorted = [...processes].sort((a, b) => 
-    a.priority === b.priority ? a.arrivalTime - b.arrivalTime : a.priority - b.priority
-  );
+  const sorted = [...processes].sort((a, b) => {
+    // Handle null priority values by treating them as lowest priority (highest number)
+    const aPriority = a.priority ?? Number.MAX_SAFE_INTEGER;
+    const bPriority = b.priority ?? Number.MAX_SAFE_INTEGER;
+    return aPriority === bPriority ? a.arrivalTime - b.arrivalTime : aPriority - bPriority;
+  });
   return fcfs(sorted);
 }
 
@@ -83,7 +86,7 @@ export function sjf(processes: Process[]): ProcessResult[] {
 
   while (remaining.length > 0) {
     const available = remaining.filter(p => p.arrivalTime <= currentTime);
-    
+
     if (available.length === 0) {
       currentTime = Math.min(...remaining.map(p => p.arrivalTime));
       continue;
@@ -95,7 +98,7 @@ export function sjf(processes: Process[]): ProcessResult[] {
 
     const startTime = currentTime;
     const endTime = startTime + next.burstTime;
-    
+
     results.push({
       process: next,
       startTime,
@@ -119,7 +122,7 @@ export function srtf(processes: Process[]): ProcessResult[] {
 
   while (remaining.length > 0) {
     const available = remaining.filter(p => p.arrivalTime <= currentTime);
-    
+
     if (available.length === 0) {
       currentTime = Math.min(...remaining.map(p => p.arrivalTime));
       continue;
@@ -132,7 +135,7 @@ export function srtf(processes: Process[]): ProcessResult[] {
     const startTime = currentTime;
     const executeTime = 1; // Execute for 1 time unit
     const endTime = startTime + executeTime;
-    
+
     results.push({
       process: next,
       startTime,
@@ -143,7 +146,7 @@ export function srtf(processes: Process[]): ProcessResult[] {
 
     const remaining_time = remainingTime.get(next.id)! - executeTime;
     remainingTime.set(next.id, remaining_time);
-    
+
     if (remaining_time === 0) {
       remaining = remaining.filter(p => p.id !== next.id);
     }
