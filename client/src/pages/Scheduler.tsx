@@ -31,16 +31,7 @@ import {
 } from "@/components/ui/table";
 import { fcfs, roundRobin, priority, sjf, srtf } from "@/lib/algorithms";
 import { motion } from "framer-motion";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from "recharts";
+import { Cpu, Settings2 } from 'lucide-react';
 
 interface ProcessResult {
   process: Process;
@@ -78,6 +69,8 @@ export default function Scheduler() {
     control: form.control,
     name: "processes",
   });
+
+  const currentAlgorithm = form.watch("algorithm");
 
   const onSubmit = (data: ProcessesFormValues) => {
     let simulationResults;
@@ -124,21 +117,34 @@ export default function Scheduler() {
           name: "Idle",
           start: currentTime,
           duration: result.startTime - currentTime,
-          fill: "#e5e5e5"
+          isIdle: true
         });
       }
       ganttData.push({
         name: result.process.name,
         start: result.startTime,
         duration: result.endTime - result.startTime,
-        fill: "#8884d8"
+        isIdle: false
       });
       currentTime = result.endTime;
     });
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pt-6">
+      <div className="text-center mb-8">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="flex justify-center items-center gap-3 mb-4"
+        >
+          <Cpu className="h-12 w-12 text-primary" />
+          <Settings2 className="h-8 w-8 text-purple-500 animate-spin-slow" />
+        </motion.div>
+        <h1 className="text-3xl font-bold">Process Scheduler</h1>
+        <p className="text-muted-foreground mt-2">Configure and visualize CPU scheduling algorithms</p>
+      </div>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <div className="grid lg:grid-cols-[2fr,1fr] gap-6">
@@ -162,7 +168,7 @@ export default function Scheduler() {
                         <TableHead>Name</TableHead>
                         <TableHead>Arrival Time</TableHead>
                         <TableHead>Burst Time</TableHead>
-                        <TableHead>Priority</TableHead>
+                        {currentAlgorithm === "Priority" && <TableHead>Priority</TableHead>}
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -221,25 +227,27 @@ export default function Scheduler() {
                               )}
                             />
                           </TableCell>
-                          <TableCell>
-                            <FormField
-                              control={form.control}
-                              name={`processes.${index}.priority`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      {...field}
-                                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </TableCell>
+                          {currentAlgorithm === "Priority" && (
+                            <TableCell>
+                              <FormField
+                                control={form.control}
+                                name={`processes.${index}.priority`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        {...field}
+                                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Button
                               type="button"
@@ -311,7 +319,7 @@ export default function Scheduler() {
                   />
                 )}
 
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90">
                   Run Simulation
                 </Button>
               </CardContent>
@@ -330,30 +338,39 @@ export default function Scheduler() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold mb-4">Gantt Chart</h2>
-              <div className="h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={ganttData}
-                    layout="horizontal"
-                    barSize={50}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 'auto']} />
-                    <YAxis type="category" dataKey="name" />
-                    <Tooltip 
-                      formatter={(value: any, name: any, props: any) => {
-                        const start = props.payload.start;
-                        return [`Start: ${start}, Duration: ${value}`];
-                      }}
-                    />
-                    <Bar 
-                      dataKey="duration"
-                      fill={(entry) => entry.fill}
-                      name="Execution Time"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="relative">
+                <div className="flex">
+                  {ganttData.map((block, index) => (
+                    <div
+                      key={index}
+                      className={`flex-grow text-center p-4 border ${
+                        block.isIdle 
+                          ? 'bg-gray-100 text-gray-500 border-gray-200' 
+                          : 'bg-primary/10 border-primary/20'
+                      }`}
+                      style={{ width: `${(block.duration / currentTime) * 100}%` }}
+                    >
+                      <div className="font-medium">{block.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {block.duration} units
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex mt-2">
+                  {ganttData.map((block, index) => (
+                    <div
+                      key={index}
+                      className="flex-grow text-center text-sm text-muted-foreground"
+                      style={{ width: `${(block.duration / currentTime) * 100}%` }}
+                    >
+                      {block.start}
+                    </div>
+                  ))}
+                  <div className="text-sm text-muted-foreground">
+                    {currentTime}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -386,9 +403,15 @@ export default function Scheduler() {
             <Card>
               <CardContent className="p-6">
                 <h2 className="text-xl font-semibold mb-4">Average Statistics</h2>
-                <div className="space-y-2">
-                  <p>Average Waiting Time: {averageStats.avgWaiting.toFixed(2)}</p>
-                  <p>Average Turnaround Time: {averageStats.avgTurnaround.toFixed(2)}</p>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-primary/5">
+                    <p className="text-sm text-muted-foreground mb-1">Average Waiting Time</p>
+                    <p className="text-2xl font-semibold">{averageStats.avgWaiting.toFixed(2)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-purple-500/5">
+                    <p className="text-sm text-muted-foreground mb-1">Average Turnaround Time</p>
+                    <p className="text-2xl font-semibold">{averageStats.avgTurnaround.toFixed(2)}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
