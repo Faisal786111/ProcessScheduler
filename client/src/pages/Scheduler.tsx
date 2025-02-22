@@ -29,9 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { fcfs, roundRobin, priority, sjf, srtf } from "@/lib/algorithms";
 import { motion } from "framer-motion";
-import { Cpu, Settings2 } from 'lucide-react';
+import { Cpu, Settings2, Send } from 'lucide-react';
 
 interface ProcessResult {
   process: Process;
@@ -51,10 +53,13 @@ type ProcessesFormValues = z.infer<typeof processesFormSchema>;
 
 export default function Scheduler() {
   const [results, setResults] = useState<ProcessResult[]>([]);
+  const [feedback, setFeedback] = useState("");
+  const [currentTime, setCurrentTime] = useState(0);
   const [averageStats, setAverageStats] = useState({ 
     avgWaiting: 0, 
     avgTurnaround: 0 
   });
+  const { toast } = useToast();
 
   const form = useForm<ProcessesFormValues>({
     resolver: zodResolver(processesFormSchema),
@@ -97,7 +102,9 @@ export default function Scheduler() {
     // Calculate average statistics
     const totalWaiting = simulationResults.reduce((sum, result) => sum + result.waitingTime, 0);
     const totalTurnaround = simulationResults.reduce((sum, result) => sum + result.turnaroundTime, 0);
+    const lastEndTime = Math.max(...simulationResults.map(r => r.endTime));
 
+    setCurrentTime(lastEndTime);
     setAverageStats({
       avgWaiting: totalWaiting / processes.length,
       avgTurnaround: totalTurnaround / processes.length
@@ -106,17 +113,27 @@ export default function Scheduler() {
     setResults(simulationResults);
   };
 
+  const handleFeedbackSubmit = () => {
+    if (feedback.trim()) {
+      toast({
+        title: "Thank you for your feedback!",
+        description: "Your feedback helps us improve the simulator.",
+      });
+      setFeedback("");
+    }
+  };
+
   // Create Gantt chart data with idle time
   const ganttData = [];
   if (results.length > 0) {
-    let currentTime = 0;
+    let time = 0;
     results.forEach((result) => {
       // Add idle time if there's a gap
-      if (result.startTime > currentTime) {
+      if (result.startTime > time) {
         ganttData.push({
           name: "Idle",
-          start: currentTime,
-          duration: result.startTime - currentTime,
+          start: time,
+          duration: result.startTime - time,
           isIdle: true
         });
       }
@@ -126,7 +143,7 @@ export default function Scheduler() {
         duration: result.endTime - result.startTime,
         isIdle: false
       });
-      currentTime = result.endTime;
+      time = result.endTime;
     });
   }
 
@@ -416,6 +433,28 @@ export default function Scheduler() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Share Your Feedback</h2>
+              <div className="space-y-4">
+                <Textarea 
+                  placeholder="How was your experience with the scheduler? Any suggestions for improvement?"
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  className="min-h-[100px]"
+                />
+                <Button 
+                  onClick={handleFeedbackSubmit}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Submit Feedback
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
       )}
     </div>
