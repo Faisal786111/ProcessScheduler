@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { fcfs, roundRobin, priority, sjf, srtf } from "@/lib/algorithms";
 import { motion } from "framer-motion";
-import { Cpu, Settings2, Send } from 'lucide-react';
+import { Cpu, Settings2, Send, ArrowUp } from 'lucide-react';
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 
 interface ProcessResult {
@@ -61,6 +61,7 @@ export default function Scheduler() {
     avgTurnaround: 0 
   });
   const { toast } = useToast();
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const form = useForm<ProcessesFormValues>({
     resolver: zodResolver(processesFormSchema),
@@ -84,6 +85,16 @@ export default function Scheduler() {
       title: "Process Added",
       description: "Use Ctrl+P to quickly add more processes",
     });
+  });
+
+  useKeyboardShortcut('r', true, () => {
+    if (fields.length > 1) {
+      remove(fields.length - 1);
+      toast({
+        title: "Process Removed",
+        description: "Use Ctrl+R to quickly remove processes",
+      });
+    }
   });
 
   const onSubmit = (data: ProcessesFormValues) => {
@@ -163,6 +174,19 @@ export default function Scheduler() {
       time = result.endTime;
     });
   }
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="space-y-8 pt-6">
@@ -417,6 +441,8 @@ export default function Scheduler() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Process</TableHead>
+                      <TableHead>Arrival Time</TableHead>
+                      <TableHead>Completion Time</TableHead>
                       <TableHead>Waiting Time</TableHead>
                       <TableHead>Turnaround Time</TableHead>
                     </TableRow>
@@ -425,6 +451,8 @@ export default function Scheduler() {
                     {results.map((result) => (
                       <TableRow key={result.process.id}>
                         <TableCell>{result.process.name}</TableCell>
+                        <TableCell>{result.process.arrivalTime}</TableCell>
+                        <TableCell>{result.endTime}</TableCell>
                         <TableCell>{result.waitingTime}</TableCell>
                         <TableCell>{result.turnaroundTime}</TableCell>
                       </TableRow>
@@ -473,6 +501,15 @@ export default function Scheduler() {
             </CardContent>
           </Card>
         </motion.div>
+      )}
+      {showScrollTop && (
+        <Button
+          className="fixed bottom-8 right-8 rounded-full p-3"
+          onClick={scrollToTop}
+          size="icon"
+        >
+          <ArrowUp className="h-6 w-6" />
+        </Button>
       )}
     </div>
   );
