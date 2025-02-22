@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { processSchema, type Process, type AlgorithmType } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fcfs, roundRobin, priority, sjf, srtf } from "@/lib/algorithms";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -49,55 +50,45 @@ interface ProcessResult {
   turnaroundTime: number;
 }
 
-interface SettingsFormValues {
-  algorithm: AlgorithmType;
-  quantum: number;
-}
+const processesFormSchema = z.object({
+  processes: z.array(processSchema).min(1, "Add at least one process"),
+  algorithm: z.enum(["FCFS", "RR", "Priority", "SJF", "SRTF"]),
+  quantum: z.number().min(1).optional(),
+});
+
+type ProcessesFormValues = z.infer<typeof processesFormSchema>;
 
 export default function Scheduler() {
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [algorithm, setAlgorithm] = useState<AlgorithmType>("FCFS");
-  const [quantum, setQuantum] = useState(2);
   const [results, setResults] = useState<ProcessResult[]>([]);
   const [averageStats, setAverageStats] = useState({ 
     avgWaiting: 0, 
     avgTurnaround: 0 
   });
 
-  const processForm = useForm({
-    resolver: zodResolver(processSchema),
+  const form = useForm<ProcessesFormValues>({
+    resolver: zodResolver(processesFormSchema),
     defaultValues: {
-      name: "",
-      arrivalTime: 0,
-      burstTime: 1,
-      priority: 0,
-    },
-  });
-
-  const settingsForm = useForm<SettingsFormValues>({
-    defaultValues: {
+      processes: [{ name: "P1", arrivalTime: 0, burstTime: 1, priority: 0 }],
       algorithm: "FCFS",
       quantum: 2,
     },
   });
 
-  const onSubmit = (data: any) => {
-    const newProcess: Process = {
-      id: processes.length + 1,
-      ...data,
-    };
-    setProcesses([...processes, newProcess]);
-    processForm.reset();
-  };
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "processes",
+  });
 
-  const runSimulation = () => {
+  const onSubmit = (data: ProcessesFormValues) => {
     let simulationResults;
-    switch (algorithm) {
+    const processes = data.processes.map((p, idx) => ({ ...p, id: idx + 1 }));
+
+    switch (data.algorithm) {
       case "FCFS":
         simulationResults = fcfs(processes);
         break;
       case "RR":
-        simulationResults = roundRobin(processes, quantum);
+        simulationResults = roundRobin(processes, data.quantum || 2);
         break;
       case "Priority":
         simulationResults = priority(processes);
@@ -122,75 +113,190 @@ export default function Scheduler() {
     setResults(simulationResults);
   };
 
-  const clearProcesses = () => {
-    setProcesses([]);
-    setResults([]);
-    setAverageStats({ avgWaiting: 0, avgTurnaround: 0 });
-  };
-
-  // Create Gantt chart data
-  const ganttData = results.map((result) => ({
-    name: result.process.name,
-    start: result.startTime,
-    duration: result.endTime - result.startTime,
-  }));
+  // Create Gantt chart data with idle time
+  const ganttData = [];
+  if (results.length > 0) {
+    let currentTime = 0;
+    results.forEach((result) => {
+      // Add idle time if there's a gap
+      if (result.startTime > currentTime) {
+        ganttData.push({
+          name: "Idle",
+          start: currentTime,
+          duration: result.startTime - currentTime,
+          fill: "#e5e5e5"
+        });
+      }
+      ganttData.push({
+        name: result.process.name,
+        start: result.startTime,
+        duration: result.endTime - result.startTime,
+        fill: "#8884d8"
+      });
+      currentTime = result.endTime;
+    });
+  }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-8"
-    >
-      <div className="grid md:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Add Process</h2>
-              <Form {...processForm}>
-                <form onSubmit={processForm.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={processForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Process Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="P1" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="grid lg:grid-cols-[2fr,1fr] gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold">Processes</h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => append({ name: `P${fields.length + 1}`, arrivalTime: 0, burstTime: 1, priority: 0 })}
+                  >
+                    Add Process
+                  </Button>
+                </div>
 
-                  <FormField
-                    control={processForm.control}
-                    name="arrivalTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Arrival Time</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Arrival Time</TableHead>
+                        <TableHead>Burst Time</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {fields.map((field, index) => (
+                        <TableRow key={field.id}>
+                          <TableCell>
+                            <FormField
+                              control={form.control}
+                              name={`processes.${index}.name`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <FormField
+                              control={form.control}
+                              name={`processes.${index}.arrivalTime`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      {...field}
+                                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <FormField
+                              control={form.control}
+                              name={`processes.${index}.burstTime`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      {...field}
+                                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <FormField
+                              control={form.control}
+                              name={`processes.${index}.priority`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      {...field}
+                                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => remove(index)}
+                              disabled={fields.length === 1}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
 
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <h2 className="text-xl font-semibold">Simulation Settings</h2>
+
+                <FormField
+                  control={form.control}
+                  name="algorithm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Algorithm</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select algorithm" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="FCFS">First Come First Serve</SelectItem>
+                          <SelectItem value="RR">Round Robin</SelectItem>
+                          <SelectItem value="Priority">Priority</SelectItem>
+                          <SelectItem value="SJF">Shortest Job First</SelectItem>
+                          <SelectItem value="SRTF">Shortest Remaining Time First</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("algorithm") === "RR" && (
                   <FormField
-                    control={processForm.control}
-                    name="burstTime"
+                    control={form.control}
+                    name="quantum"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Burst Time</FormLabel>
+                        <FormLabel>Time Quantum</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -203,249 +309,92 @@ export default function Scheduler() {
                       </FormItem>
                     )}
                   />
+                )}
 
-                  {(algorithm === "Priority") && (
-                    <FormField
-                      control={processForm.control}
-                      name="priority"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                <Button type="submit" className="w-full">
+                  Run Simulation
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </form>
+      </Form>
 
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1">Add Process</Button>
-                    <Button type="button" variant="outline" onClick={clearProcesses}>Clear All</Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </motion.div>
-
+      {results.length > 0 && (
         <motion.div
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-6"
         >
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Simulation Settings</h2>
-              <Form {...settingsForm}>
-                <form className="space-y-4">
-                  <FormField
-                    control={settingsForm.control}
-                    name="algorithm"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Algorithm</FormLabel>
-                        <Select
-                          value={algorithm}
-                          onValueChange={(value) => {
-                            setAlgorithm(value as AlgorithmType);
-                            field.onChange(value);
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select algorithm" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="FCFS">First Come First Serve</SelectItem>
-                            <SelectItem value="RR">Round Robin</SelectItem>
-                            <SelectItem value="Priority">Priority</SelectItem>
-                            <SelectItem value="SJF">Shortest Job First</SelectItem>
-                            <SelectItem value="SRTF">
-                              Shortest Remaining Time First
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-
-                  {algorithm === "RR" && (
-                    <FormField
-                      control={settingsForm.control}
-                      name="quantum"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Time Quantum</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={quantum}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value);
-                                setQuantum(value);
-                                field.onChange(value);
-                              }}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  <Button
-                    type="button"
-                    onClick={runSimulation}
-                    disabled={processes.length === 0}
-                    className="w-full"
+              <h2 className="text-xl font-semibold mb-4">Gantt Chart</h2>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={ganttData}
+                    layout="horizontal"
+                    barSize={50}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
-                    Run Simulation
-                  </Button>
-                </form>
-              </Form>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" domain={[0, 'auto']} />
+                    <YAxis type="category" dataKey="name" />
+                    <Tooltip 
+                      formatter={(value: any, name: any, props: any) => {
+                        const start = props.payload.start;
+                        return [`Start: ${start}, Duration: ${value}`];
+                      }}
+                    />
+                    <Bar 
+                      dataKey="duration"
+                      fill={(entry) => entry.fill}
+                      name="Execution Time"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
-        </motion.div>
-      </div>
 
-      {processes.length > 0 && (
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Process Table</h2>
-              <div className="overflow-x-auto">
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Process Details</h2>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Process</TableHead>
-                      <TableHead>Arrival Time</TableHead>
-                      <TableHead>Burst Time</TableHead>
-                      {algorithm === "Priority" && <TableHead>Priority</TableHead>}
+                      <TableHead>Waiting Time</TableHead>
+                      <TableHead>Turnaround Time</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <AnimatePresence>
-                      {processes.map((process) => (
-                        <motion.tr
-                          key={process.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <TableCell>{process.name}</TableCell>
-                          <TableCell>{process.arrivalTime}</TableCell>
-                          <TableCell>{process.burstTime}</TableCell>
-                          {algorithm === "Priority" && (
-                            <TableCell>{process.priority}</TableCell>
-                          )}
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
+                    {results.map((result) => (
+                      <TableRow key={result.process.id}>
+                        <TableCell>{result.process.name}</TableCell>
+                        <TableCell>{result.waitingTime}</TableCell>
+                        <TableCell>{result.turnaroundTime}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Average Statistics</h2>
+                <div className="space-y-2">
+                  <p>Average Waiting Time: {averageStats.avgWaiting.toFixed(2)}</p>
+                  <p>Average Turnaround Time: {averageStats.avgTurnaround.toFixed(2)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </motion.div>
       )}
-
-      {results.length > 0 && (
-        <>
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-          >
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Gantt Chart</h2>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={ganttData}
-                      layout="vertical"
-                      barSize={30}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" />
-                      <Tooltip 
-                        formatter={(value: any, name: any) => {
-                          if (name === 'duration') return `Duration: ${value}`;
-                          return `Start: ${value}`;
-                        }}
-                      />
-                      <Legend />
-                      <Bar 
-                        dataKey="duration" 
-                        stackId="a" 
-                        fill="#8884d8" 
-                        name="Execution Time"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.8 }}
-          >
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Results</h2>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="font-medium mb-2">Process Details</h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Process</TableHead>
-                          <TableHead>Waiting Time</TableHead>
-                          <TableHead>Turnaround Time</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {results.map((result) => (
-                          <TableRow key={result.process.id}>
-                            <TableCell>{result.process.name}</TableCell>
-                            <TableCell>{result.waitingTime}</TableCell>
-                            <TableCell>{result.turnaroundTime}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium mb-2">Average Statistics</h3>
-                    <div className="space-y-2">
-                      <p>Average Waiting Time: {averageStats.avgWaiting.toFixed(2)}</p>
-                      <p>Average Turnaround Time: {averageStats.avgTurnaround.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </>
-      )}
-    </motion.div>
+    </div>
   );
 }
