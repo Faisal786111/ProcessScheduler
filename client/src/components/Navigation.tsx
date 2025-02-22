@@ -7,14 +7,14 @@ export default function Navigation() {
 
   const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
     <Link href={href}>
-      <a className={cn(
-        "px-4 py-2 text-sm font-medium transition-colors",
+      <span className={cn(
+        "px-4 py-2 text-sm font-medium transition-colors cursor-pointer",
         location === href 
           ? "text-primary bg-accent" 
           : "text-muted-foreground hover:text-primary"
       )}>
         {children}
-      </a>
+      </span>
     </Link>
   );
 
@@ -26,7 +26,7 @@ export default function Navigation() {
             <Cpu className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold">CPU Scheduler</span>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <NavLink href="/">Home</NavLink>
             <NavLink href="/scheduler">Scheduler</NavLink>
