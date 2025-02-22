@@ -4,10 +4,25 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Mail, MessageSquare, Send } from "lucide-react";
+import { ArrowUp, Mail, MessageSquare, Send } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Contact() {
   const { toast } = useToast();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,8 +97,18 @@ export default function Contact() {
         className="mt-8 text-center text-muted-foreground"
       >
         <p>You can also reach us at:</p>
-        <p className="font-medium">support@cpuscheduler.com</p>
+        <p className="font-medium">faisalkhanisrar@gmail.com</p>
       </motion.div>
+      {showScrollTop && (
+        <Button
+          className="fixed bottom-8 right-8 rounded-full p-3"
+          onClick={scrollToTop}
+          size="icon"
+        >
+          <ArrowUp className="h-6 w-6" />
+        </Button>
+      )}
     </motion.div>
+    
   );
 }

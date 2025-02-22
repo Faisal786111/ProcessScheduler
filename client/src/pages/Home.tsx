@@ -32,7 +32,7 @@ export default function Home() {
         >
           <Cpu className="h-20 w-20 text-primary" />
         </motion.div>
-        <h1 className="text-5xl font-bold tracking-tight mb-6 bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-bold tracking-tight mb-7 pb-3 bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           CPU Scheduling Visualizer
         </h1>
         <p className="text-xl text-muted-foreground">
